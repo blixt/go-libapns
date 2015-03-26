@@ -27,6 +27,8 @@ type APNSConfig struct {
 	CertificateBytes []byte
 	//bytes for key.pem : required
 	KeyBytes []byte
+	// A connection that can be provided in place of the gateway settings.
+	Connection net.Conn
 	//apple gateway, defaults to "gateway.push.apple.com"
 	GatewayHost string
 	//apple gateway port, defaults to "2195"
@@ -173,12 +175,17 @@ func NewAPNSConnection(config *APNSConfig) (*APNSConnection, error) {
 		ServerName:   config.GatewayHost,
 	}
 
-	tcpSocket, err := net.DialTimeout("tcp",
-		config.GatewayHost+":"+config.GatewayPort,
-		time.Duration(config.SocketTimeout)*time.Second)
-	if err != nil {
-		//failed to connect to gateway
-		return nil, err
+	var tcpSocket net.Conn
+	if config.Connection != nil {
+		tcpSocket = config.Connection
+	} else {
+		address := config.GatewayHost + ":" + config.GatewayPort
+		timeout := time.Duration(config.SocketTimeout) * time.Second
+		if conn, err := net.DialTimeout("tcp", address, timeout); err != nil {
+			return nil, err
+		} else {
+			tcpSocket = conn
+		}
 	}
 
 	tlsSocket := tls.Client(tcpSocket, tlsConf)
